@@ -3,8 +3,8 @@ import asyncio
 from aiohttp import web
 
 import source
-from currency_pairs import Assets
-from storage import InMemoryStorage, DBUpdater
+from storage.asset import Assets
+from storage.storage import InMemoryStorage, DBUpdater
 from server.views import index_handler, ws_handle
 
 

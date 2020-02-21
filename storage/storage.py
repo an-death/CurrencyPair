@@ -1,11 +1,11 @@
-import asyncio
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
 from functools import partial
 from operator import methodcaller
 from typing import Any, Iterable
 
-from currency_pairs import Point, Assets
+from storage.asset import Assets
+from storage.point import Point
 from watchdog import Time, Seconds
 
 

@@ -1,4 +1,3 @@
-import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
@@ -7,7 +6,7 @@ from typing import Callable
 
 import aiohttp
 
-from currency_pairs import Point
+from storage.point import Point
 from watchdog import Watchdog, Seconds
 
 CancelFunc = Callable[[], None]

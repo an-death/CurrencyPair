@@ -7,22 +7,7 @@ from decimal import Decimal
 from operator import itemgetter
 from typing import Any
 
-
-class Currency:
-    EURUSD = 'EURUSD'
-    USDJPY = 'USDJPY'
-    GBPUSD = 'GBPUSD'
-    AUDUSD = 'AUDUSD'
-    USDCAD = 'USDCAD'
-
-
-Assets = {
-    Currency.EURUSD: 1,
-    Currency.USDJPY: 2,
-    Currency.GBPUSD: 3,
-    Currency.AUDUSD: 4,
-    Currency.USDCAD: 5,
-}
+from storage.asset import Assets
 
 
 class Point(
@@ -31,9 +16,6 @@ class Point(
     @classmethod
     def from_ratesjson(cls, data: dict) -> 'Point':
         return RatesJSONConverter(data).convert()
-
-    def json(self):
-        return self._asdict()
 
 
 class UnknownAsset(Exception):

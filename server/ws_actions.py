@@ -1,47 +1,106 @@
 from abc import ABC, abstractmethod
-from itertools import starmap
+from functools import partial
+from typing import Callable, Any
 
-from currency_pairs import Assets
+from aiohttp import web
+
+from server.serializers import AssetsSerializer, PointSetSerializer, PointSerializer
+from storage.asset import Assets
+from watchdog import Minutes
+
+DEFAULT_HISTORY_OFFSET = Minutes(30)
 
 
 class Action(ABC):
-    _name: str = None
-    _message: 'JsonSerializable' = None
+    NAME: str = None
 
-    @classmethod
-    def from_raw(cls, data: dict):
-        pass
+    def __init__(self,
+                 context: web.Application,
+                 ws: web.WebSocketResponse):
+        self._context = context
+        self._ws = ws
 
     @abstractmethod
-    def response(self):
+    async def response(self, message: Any):
         pass
 
-
-class AssetsSerializer:
-    @staticmethod
-    def serialize():
-        data = starmap(lambda name, id: {'id': id, 'name': name}, Assets.items())
-        return tuple(data)
+    async def _send_response(self, data: dict):
+        await self._ws.send_json(data)
 
 
 class AssetsAction(Action):
-    _name = 'assets'
-    _serializer = AssetsSerializer
+    NAME = 'assets'
 
-    def __init__(self, data: dict):
-        pass
+    async def response(self, _):
+        data = {
+            'action': self.NAME,
+            'message': AssetsSerializer(Assets)
+        }
+        return await self._send_response(data)
 
-    def response(self):
-        return {'action': self._name, 'message': self._serializer().serialize()}
+
+class SubscribeAction(Action):
+    NAME = 'subscribe'
+
+    def __init__(self, context, send):
+        super().__init__(context, send)
+        self._subscribe = PointAction(context, send).response
+        self._history = PointHistoryAction(context, send).response
+
+    async def response(self, message: dict):
+        await self._subscribe(message)
+        await self._history(message)
 
 
-class AssetAction(Action):
-    _name = 'asset'
+class PointHistoryAction(Action):
+    NAME = 'asset_history'
+    _DEFAULT_OFFSET = DEFAULT_HISTORY_OFFSET
 
-    def __init__(self, data: dict):
-        self._message = data['message']
-        self._asset_id = data['message']['assetId']
+    def __init__(self, context, send):
+        super().__init__(context, send)
+        self._get_history = partial(
+            context['db'].get, offset=self._DEFAULT_OFFSET
+        )
 
-    def response(self):
-        return {'action': self._name, 'message': self.serializer(self._asset_id).serialize()}
+    async def response(self, message: Any):
+        points = await self._get_history(message['assetId'])
+        await self._send_response(
+            {'action': self.NAME,
+             'message': {'points': PointSetSerializer(points)}
+             }
+        )
 
+
+class PointAction(Action):
+    NAME = 'point'
+    _cancel_subscribe: Callable[[], None] = None
+
+    def __init__(self, context, send):
+        super().__init__(context, send)
+        self._subscribe = partial(
+            context['rates'].subscribe,
+            callback=self._point
+        )
+
+    async def response(self, message: Any):
+        self._subscribe_rates(message['assetId'])
+
+    async def _point(self, point):
+        if self._ws.closed:
+            self._cancel_subscribe()
+            return
+
+        await self._send_response(
+            {'action': self.NAME,
+             'message': PointSerializer(point)}
+        )
+
+    def _subscribe_rates(self, asset_id: int):
+        if self._cancel_subscribe:
+            self._cancel_subscribe()
+        if asset_id not in Assets.values():
+            raise KeyError(f'unsupported asset id {asset_id}')
+
+        asset_name = next(filter(lambda x: x[1] == asset_id, Assets.items()))
+        cancel_subscribe = self._subscribe(asset_name[0])
+        self._cancel_subscribe = cancel_subscribe

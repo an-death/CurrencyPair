@@ -14,7 +14,7 @@ class Second(Time):
         self._value = value
 
     def __int__(self):
-        self._value
+        return self._value
 
 
 class Watchdog:

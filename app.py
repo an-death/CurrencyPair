@@ -3,31 +3,34 @@ import asyncio
 from aiohttp import web
 
 import source
-
-
-async def index_handler(request):
-    rates = await request.app['rate_source']._requester.get_rates()
-    return web.Response(text=str(rates))
+from currency_pairs import Assets
+from storage import InMemoryStorage, DBUpdater
+from views import index_handler
 
 
 async def start_background(app):
-    app['cleanupable'] = []
+    app['closable'] = []
+
     rate_source = source.CurrencyRates()
     await rate_source.start()
     app['rate_source'] = rate_source
+    app['db'] = InMemoryStorage()
+    db_updater = DBUpdater(app['db'], rate_source, Assets.keys())
+    await db_updater.start()
 
-
-    app['cleanupable'].append(rate_source.stop)
+    app['closable'].extend(
+        (rate_source.stop, db_updater.stop)
+    )
 
 
 async def cleanup_background(app):
-    cleanupables = app['cleanupable']
+    closes = app['closable']
 
-    for cleanup in cleanupables:
-        if asyncio.iscoroutinefunction(cleanup):
-            await cleanup()
+    for close in closes:
+        if asyncio.iscoroutinefunction(close):
+            await close()
         else:
-            cleanup()
+            close()
 
 
 # to start use aiohttp CLI:

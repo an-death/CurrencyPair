@@ -1,4 +1,6 @@
+import asyncio
 import json
+import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import Callable
@@ -26,9 +28,8 @@ class CurrencyRequestClient:
         self._session = aiohttp.ClientSession()
 
     async def get_rates(self):
-        async with self._session as session:
-            async with session.get(self._URL) as response:
-                return await self._json(response)
+        async with self._session.get(self._URL) as response:
+            return await self._json(response)
 
     async def _json(self, response: aiohttp.ClientResponse):
         # it is actually return javascript for `ratesjson.com`
@@ -43,10 +44,14 @@ class CurrencyRequestClient:
 
         raise Exception('Unsupported content type')
 
+    async def stop(self):
+        if self._session and not self._session.closed:
+            await self._session.close()
+
 
 class SubscribeEngine(ABC):
     @abstractmethod
-    def subscribe(self, chan_name: str) -> CancelFunc:
+    def subscribe(self, chan_name: str, callback) -> CancelFunc:
         pass
 
     @abstractmethod
@@ -64,11 +69,13 @@ class SimpleSubscribeEngine(SubscribeEngine):
         self._channels[chan_name].append(callback)
         return lambda: self._channels[chan_name].remove(callback)
 
-    def notify(self, chan_name: str, data: 'JsonConvertable'):
+    async def notify(self, chan_name: str, data: 'JsonConvertable'):
         for callback in self._channels[chan_name]:
             try:
-                callback(data)
+                await callback(data)
+
             except Exception as e:
+                print(e)
                 # TODO: log
                 pass
 
@@ -78,26 +85,25 @@ class CurrencyRates:
     _CurrencyGetter = CurrencyRequestClient
 
     def __init__(self):
-        self._watchdog = Watchdog(self._watchdog_fn, Second(1))
+        self._watchdog = Watchdog(self._watchdog_fn, Second(1), logging.exception)
         self._requester = self._CurrencyGetter()
         self._notifier = self._SubscribeEngine()
 
     async def start(self):
         await self._watchdog.start()
 
-    def stop(self):
+    async def stop(self):
         self._watchdog.stop()
-        if not self._session.closed:
-            self._session.close()
+        await self._requester.stop()
 
     async def _watchdog_fn(self):
-        rates = await self._requester.request_rates()
-        await self._notify_subscriberts(rates['Rates'])
+        rates = await self._requester.get_rates()
+        await self._notify_subscribers(rates['Rates'])
 
     async def _notify_subscribers(self, rates: list):
         for rate in rates:
-            self._notifier.notify(Point.from_ratesjson(rate))
+            point = Point.from_ratesjson(rate)
+            await self._notifier.notify(point.assetName, point)
 
-    def subscribe(self, rate_name: 'Currency') -> CancelFunc:
-        return self._notifier.subscribe(rate_name)
-
+    def subscribe(self, rate_name: 'Currency', callback) -> CancelFunc:
+        return self._notifier.subscribe(rate_name, callback)

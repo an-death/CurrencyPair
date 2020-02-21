@@ -4,7 +4,7 @@ from collections import namedtuple
 from decimal import Decimal
 
 # That actually could be in database
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from typing import Any
 
 
@@ -16,7 +16,7 @@ class Currency:
     USDCAD = 'USDCAD'
 
 
-_AssetIds = {
+Assets = {
     Currency.EURUSD: 1,
     Currency.USDJPY: 2,
     Currency.GBPUSD: 3,
@@ -31,6 +31,9 @@ class Point(
     @classmethod
     def from_ratesjson(cls, data: dict) -> 'Point':
         return RatesJSONConverter(data).convert()
+
+    def json(self):
+        return self._asdict()
 
 
 class UnknownAsset(Exception):
@@ -54,7 +57,7 @@ class PointConverter(ABC):
 
 class RatesJSONConverter(PointConverter):
     _data: dict
-    __bid_ask_extractor = attrgetter('Bid', 'Ask')
+    __bid_ask_extractor = itemgetter('Bid', 'Ask')
 
     def _get_value(self, data: dict):
         bid_ask_sum = sum(map(Decimal, self.__bid_ask_extractor(data)))
@@ -64,11 +67,9 @@ class RatesJSONConverter(PointConverter):
     def _get_current_unixtime():
         return int(time.time())
 
-    def convert(self, data: dict) -> Point:
+    def convert(self) -> Point:
+        data = self._data
         name = data['Symbol']
-        if name not in _AssetIds:
-            raise UnknownAsset(name)
-
         value = self._get_value(data)
         time = self._get_current_unixtime()
-        return Point(name, _AssetIds[name], value, time)
+        return Point(name, Assets.get(name, None), float(value), time)

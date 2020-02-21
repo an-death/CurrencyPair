@@ -8,7 +8,7 @@ from typing import Callable
 import aiohttp
 
 from currency_pairs import Point
-from watchdog import Watchdog, Second
+from watchdog import Watchdog, Seconds
 
 CancelFunc = Callable[[], None]
 
@@ -85,7 +85,7 @@ class CurrencyRates:
     _CurrencyGetter = CurrencyRequestClient
 
     def __init__(self):
-        self._watchdog = Watchdog(self._watchdog_fn, Second(1), logging.exception)
+        self._watchdog = Watchdog(self._watchdog_fn, Seconds(1), logging.exception)
         self._requester = self._CurrencyGetter()
         self._notifier = self._SubscribeEngine()
 

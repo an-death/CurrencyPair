@@ -4,17 +4,25 @@ from typing import Callable, Awaitable, Optional
 
 
 class Time(ABC):
-    @abstractmethod
-    def __int__(self):
-        pass
-
-
-class Second(Time):
     def __init__(self, value: int):
         self._value = value
 
     def __int__(self):
         return self._value
+
+    @abstractmethod
+    def _to_second(self, value: int):
+        pass
+
+
+class Seconds(Time):
+    def _to_second(self, value: int):
+        return value
+
+
+class Minutes(Time):
+    def _to_second(self, value: int):
+        return value * 60
 
 
 class Watchdog:

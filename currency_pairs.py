@@ -4,7 +4,7 @@ from collections import namedtuple
 from decimal import Decimal
 
 # That actually could be in database
-from operator import attrgetter, itemgetter
+from operator import itemgetter
 from typing import Any
 
 

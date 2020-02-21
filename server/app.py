@@ -5,7 +5,7 @@ from aiohttp import web
 import source
 from currency_pairs import Assets
 from storage import InMemoryStorage, DBUpdater
-from views import index_handler
+from server.views import index_handler, ws_handle
 
 
 async def start_background(app):
@@ -13,7 +13,7 @@ async def start_background(app):
 
     rate_source = source.CurrencyRates()
     await rate_source.start()
-    app['rate_source'] = rate_source
+    app['rates'] = rate_source
     app['db'] = InMemoryStorage()
     db_updater = DBUpdater(app['db'], rate_source, Assets.keys())
     await db_updater.start()
@@ -33,11 +33,11 @@ async def cleanup_background(app):
             close()
 
 
-# to start use aiohttp CLI:
-# python -m aiohttp.web -H localhost -P 8080 app:main
-def main(argv):
+
+def app_factory():
     app = web.Application()
     app.router.add_get('/', index_handler)
+    app.router.add_get('/ws', ws_handle)
     app.on_startup.append(start_background)
     app.on_cleanup.append(cleanup_background)
     return app

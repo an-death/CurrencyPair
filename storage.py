@@ -6,7 +6,7 @@ from operator import methodcaller
 from typing import Any, Iterable
 
 from currency_pairs import Point, Assets
-from watchdog import Time, Second
+from watchdog import Time, Seconds
 
 
 class Storage(ABC):
@@ -16,7 +16,7 @@ class Storage(ABC):
         pass
 
     @abstractmethod
-    async def get(self, asset: int, offset: Time = Second(1)):
+    async def get(self, asset: int, offset: Time = Seconds(1)):
         pass
 
     @abstractmethod
@@ -24,7 +24,7 @@ class Storage(ABC):
         pass
 
     @abstractmethod
-    async def get_by_name(self, asset_name: str, offset: Time = Second(1)):
+    async def get_by_name(self, asset_name: str, offset: Time = Seconds(1)):
         pass
 
 
@@ -38,13 +38,13 @@ class InMemoryStorage(Storage):
     async def add(self, asset: int, point: Point):
         self._storage[asset].appendleft(point)
 
-    async def get(self, asset: int, offset: Time = Second(1)):
+    async def get(self, asset: int, offset: Time = Seconds(1)):
         return tuple(self._storage[asset])[0:int(offset)]
 
     async def add_by_name(self, asset_name, point: Point):
         return await self.add(Assets[asset_name], point)
 
-    async def get_by_name(self, asset_name: str, offset: Time = Second(1)):
+    async def get_by_name(self, asset_name: str, offset: Time = Seconds(1)):
         return await self.get(Assets[asset_name], offset=offset)
 
 

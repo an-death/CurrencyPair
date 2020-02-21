@@ -22,6 +22,9 @@ class ContentType:
 class CurrencyRequestClient:
     _URL = 'https://ratesjson.fxcm.com/DataDisplayer'
 
+    def __init__(self):
+        self._session = aiohttp.ClientSession()
+
     async def get_rates(self):
         async with self._session as session:
             async with session.get(self._URL) as response:
@@ -39,36 +42,6 @@ class CurrencyRequestClient:
             return await response.json()
 
         raise Exception('Unsupported content type')
-
-
-class CurrencyRates:
-    _SubscribeEngine = None
-    _CurrencyGetter = CurrencyRequestClient
-
-    def __init__(self):
-        self._session = aiohttp.ClientSession()
-        self._watchdog = Watchdog(self._watchdog_fn, Second(1))
-        self._requester = self._CurrencyGetter()
-        self._notifier = self._SubscribeEngine()
-
-    async def start(self):
-        await self._watchdog.start()
-
-    def stop(self):
-        self._watchdog.stop()
-        if not self._session.closed:
-            self._session.close()
-
-    async def _watchdog_fn(self):
-        rates = await self._requester.request_rates()
-        await self._notify_subscriberts(rates['Rates'])
-
-    async def _notify_subscribers(self, rates: list):
-        for rate in rates:
-            self._notifier.notify(Point.from_ratesjson(rate))
-
-    def subscribe(self, rate_name: 'Currency') -> CancelFunc:
-        return self._notifier.subscribe(rate_name)
 
 
 class SubscribeEngine(ABC):
@@ -98,3 +71,33 @@ class SimpleSubscribeEngine(SubscribeEngine):
             except Exception as e:
                 # TODO: log
                 pass
+
+
+class CurrencyRates:
+    _SubscribeEngine = SimpleSubscribeEngine
+    _CurrencyGetter = CurrencyRequestClient
+
+    def __init__(self):
+        self._watchdog = Watchdog(self._watchdog_fn, Second(1))
+        self._requester = self._CurrencyGetter()
+        self._notifier = self._SubscribeEngine()
+
+    async def start(self):
+        await self._watchdog.start()
+
+    def stop(self):
+        self._watchdog.stop()
+        if not self._session.closed:
+            self._session.close()
+
+    async def _watchdog_fn(self):
+        rates = await self._requester.request_rates()
+        await self._notify_subscriberts(rates['Rates'])
+
+    async def _notify_subscribers(self, rates: list):
+        for rate in rates:
+            self._notifier.notify(Point.from_ratesjson(rate))
+
+    def subscribe(self, rate_name: 'Currency') -> CancelFunc:
+        return self._notifier.subscribe(rate_name)
+

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CurrencyPair</title>
+  <script>
+    let deleteChild = function (id) {
+        let e = document.getElementById(id)
+        e.innerHTML = ''
+    }
+    let addPoint = function (point) {
+        let p = document.createElement('p')
+        p.textContent = JSON.stringify(point)
+        document.getElementById('log').appendChild(p)
+    }
+
+    let onload = function () {
+        let socket = new WebSocket(document.location.origin.replace('http', 'ws') + '/ws')
+        socket.onmessage = function (event) {
+            data = JSON.parse(event.data)
+
+            console.log(data)
+            if (data.action == 'assets') {
+                data.message.map(function (asset) {
+                    let button = document.createElement('button')
+                    button.textContent = asset.name
+                    button.onclick = function () {
+                        deleteChild('log')
+                        socket.send(JSON.stringify({'action':'subscribe', 'message': {'assetId':asset.id}}))
+                    }
+                    document.getElementById('currency_pair').appendChild(button)
+                })
+            } if (data.action == 'asset_history') {
+              data.message.points.map(addPoint)
+            } if (data.action == 'point') {
+                addPoint(data.message)
+            }
+        }
+        socket.onopen = function () {
+            socket.send(JSON.stringify({'action':'assets', 'message': {}}))
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        onload()
+    })
+  </script>
+</head>
+<body>
+<div id="currency_pair">
+</div>
+<div id="log">
+</div>
+</body>
+</html>

@@ -5,15 +5,11 @@ from typing import Iterable
 import aiohttp
 from aiohttp import web
 
-from server.serializers import PointSerializer
 from server.ws_actions import Action, AssetsAction, SubscribeAction
-from storage.asset import Assets
-from watchdog import Minutes
 
 
-async def index_handler(request):
-    rates = await request.app['db'].get(Assets['EURUSD'], offset=Minutes(30))
-    return web.json_response(tuple(map(PointSerializer, rates)))
+async def index_handler(request: web.Request):
+    return web.FileResponse('server/html/index.html')
 
 
 async def ws_handle(request):
